@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Projects</title>
+  </head>
+  <body>
+    <main>
+      <h1>Projects</h1>
+      <p><a href="{% url 'feedback:project-create' %}">Create a project</a></p>
+
+      {% if projects %}
+        <ul>
+          {% for project in projects %}
+            <li>
+              <strong>{{ project.name }}</strong>
+              <span>Created {{ project.created_at|date:"F j, Y" }}</span>
+              {% if project.description %}
+                <p>{{ project.description }}</p>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No projects yet.</p>
+      {% endif %}
+    </main>
+  </body>
+</html>

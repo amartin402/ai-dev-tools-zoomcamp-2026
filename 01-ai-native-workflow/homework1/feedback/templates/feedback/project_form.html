@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Create project</title>
+  </head>
+  <body>
+    <main>
+      <h1>Create project</h1>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Create project</button>
+      </form>
+      <p><a href="{% url 'feedback:project-list' %}">Back to projects</a></p>
+    </main>
+  </body>
+</html>
