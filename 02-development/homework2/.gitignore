@@ -42,3 +42,8 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3

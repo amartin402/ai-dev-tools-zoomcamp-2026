@@ -1,0 +1,1 @@
+"""Kanbits backend application package."""

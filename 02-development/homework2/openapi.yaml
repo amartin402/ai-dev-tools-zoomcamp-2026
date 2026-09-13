@@ -1,0 +1,531 @@
+openapi: 3.1.0
+info:
+  title: Kanbits API
+  version: 0.1.0
+  license:
+    name: Internal project API
+    identifier: UNLICENSED
+  description: |
+    REST API contract for Kanbits, a lightweight collaborative Kanban board.
+    The current frontend uses a mocked implementation of this contract.
+
+    Authentication is not required. Kanbits has no accounts or passwords;
+    clients identify the current display-name user in request payloads when
+    an actor is needed.
+servers:
+  - url: /api
+    description: API base path
+# An empty security requirement explicitly means every operation is public.
+security: []
+tags:
+  - name: Boards
+    description: Board listing and lifecycle operations
+  - name: Cards
+    description: Card creation and updates
+  - name: Comments
+    description: Card comments
+paths:
+  /boards:
+    get:
+      tags: [Boards]
+      summary: List boards
+      description: Returns board metadata and card counts. Cards are returned by the board detail endpoint.
+      operationId: listBoards
+      responses:
+        '200':
+          description: Boards visible to the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BoardSummary'
+              example:
+                - id: board-spring
+                  name: Spring launch
+                  createdAt: '2026-09-01T10:00:00Z'
+                  updatedAt: '2026-09-13T08:30:00Z'
+                  columns:
+                    - id: todo
+                      name: To Do
+                      order: 0
+                      cardOrder: []
+                    - id: progress
+                      name: In Progress
+                      order: 1
+                      cardOrder: []
+                    - id: done
+                      name: Done
+                      order: 2
+                      cardOrder: []
+                  cardCount: 7
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [Boards]
+      summary: Create a board
+      description: Creates a board with the fixed To Do, In Progress, and Done columns.
+      operationId: createBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBoardRequest'
+            example:
+              name: Spring launch
+      responses:
+        '200':
+          description: The newly created board
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /boards/{boardId}:
+    parameters:
+      - $ref: '#/components/parameters/BoardId'
+    get:
+      tags: [Boards]
+      summary: Get a board
+      description: Returns a board, its fixed columns, and all cards with comments and activity history.
+      operationId: getBoard
+      responses:
+        '200':
+          description: Board detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Boards]
+      summary: Rename a board
+      operationId: renameBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBoardRequest'
+            example:
+              name: Spring launch 2026
+      responses:
+        '200':
+          description: Updated board
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Board'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Boards]
+      summary: Delete a board
+      description: Deletes the board and cascades to its cards, comments, and activity entries.
+      operationId: deleteBoard
+      responses:
+        '200':
+          description: Whether the board was deleted
+          content:
+            application/json:
+              schema:
+                type: boolean
+              example: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /boards/{boardId}/cards:
+    parameters:
+      - $ref: '#/components/parameters/BoardId'
+    post:
+      tags: [Cards]
+      summary: Create a card
+      description: Creates a card at the end of the selected fixed column.
+      operationId: createCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCardRequest'
+            example:
+              columnId: todo
+              title: Polish the home page hero
+      responses:
+        '200':
+          description: The newly created card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cards/{cardId}:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    patch:
+      tags: [Cards]
+      summary: Update or move a card
+      description: |
+        Partially updates card fields. To move or reorder a card, include
+        columnId and position. Meaningful changes append an activity entry.
+      operationId: updateCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCardRequest'
+            examples:
+              editDescription:
+                value:
+                  description: Tighten the headline and make the first scroll intentional.
+              moveCard:
+                value:
+                  columnId: progress
+                  position: 0
+              assignCard:
+                value:
+                  assignee:
+                    id: user-maya
+                    name: Maya Chen
+                    color: '#7b61ff'
+      responses:
+        '200':
+          description: Updated card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cards/{cardId}/comments:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    post:
+      tags: [Comments]
+      summary: Add a comment
+      operationId: addComment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+            example:
+              text: The second step is feeling much clearer now.
+              author:
+                id: user-you
+                name: Alex Morgan
+                color: '#d95d39'
+      responses:
+        '200':
+          description: The new comment and the updated card
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [comment, card]
+                properties:
+                  comment:
+                    $ref: '#/components/schemas/Comment'
+                  card:
+                    $ref: '#/components/schemas/Card'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      description: Board identifier
+      schema:
+        type: string
+      example: board-spring
+    CardId:
+      name: cardId
+      in: path
+      required: true
+      description: Card identifier
+      schema:
+        type: string
+      example: card-home
+  responses:
+    BadRequest:
+      description: The request body is invalid or a required value is missing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: The requested board or card does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    User:
+      type: object
+      required: [id, name, color]
+      properties:
+        id:
+          type: string
+          description: Client-generated user identifier. No account is associated with it.
+          example: user-you
+        name:
+          type: string
+          minLength: 1
+          example: Alex Morgan
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          example: '#d95d39'
+    Label:
+      type: object
+      required: [id, name, color]
+      properties:
+        id:
+          type: string
+          example: label-design
+        name:
+          type: string
+          example: Design
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          example: '#8267d8'
+    Column:
+      type: object
+      required: [id, name, order, cardOrder]
+      properties:
+        id:
+          type: string
+          example: todo
+        name:
+          type: string
+          enum: [To Do, In Progress, Done]
+        order:
+          type: integer
+          enum: [0, 1, 2]
+        cardOrder:
+          type: array
+          items:
+            type: string
+          description: Ordered card identifiers used for drag-and-drop position.
+    Comment:
+      type: object
+      required: [id, author, text, createdAt]
+      properties:
+        id:
+          type: string
+          example: comment-1
+        author:
+          $ref: '#/components/schemas/User'
+        text:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          format: date-time
+    ActivityEntry:
+      type: object
+      required: [id, type, detail, actor, timestamp]
+      properties:
+        id:
+          type: string
+          example: event-abc12345
+        type:
+          type: string
+          enum: [created, moved, edited, assigned, commented, due_date_changed, label_changed]
+        detail:
+          type: string
+          example: moved from To Do to In Progress
+        actor:
+          $ref: '#/components/schemas/User'
+        timestamp:
+          type: string
+          format: date-time
+    Card:
+      type: object
+      required: [id, title, description, columnId, dueDate, labels, assignee, createdAt, updatedAt, comments, activityLog]
+      properties:
+        id:
+          type: string
+          example: card-home
+        title:
+          type: string
+          minLength: 1
+          example: Polish the home page hero
+        description:
+          type: string
+          example: Tighten the headline and make the first scroll feel more intentional.
+        columnId:
+          type: string
+          example: todo
+        dueDate:
+          type: [string, 'null']
+          format: date
+          example: '2026-09-18'
+        labels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Label'
+        assignee:
+          anyOf:
+            - $ref: '#/components/schemas/User'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        activityLog:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityEntry'
+    Board:
+      type: object
+      required: [id, name, createdAt, updatedAt, columns, cards]
+      properties:
+        id:
+          type: string
+          example: board-spring
+        name:
+          type: string
+          minLength: 1
+          example: Spring launch
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        columns:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Column'
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/Card'
+    BoardSummary:
+      type: object
+      required: [id, name, createdAt, updatedAt, columns, cardCount]
+      properties:
+        id:
+          type: string
+          example: board-spring
+        name:
+          type: string
+          example: Spring launch
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        columns:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Column'
+        cardCount:
+          type: integer
+          minimum: 0
+          description: Number of cards on the board. The list endpoint omits the full cards array.
+    CreateBoardRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+    UpdateBoardRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+    CreateCardRequest:
+      type: object
+      required: [columnId, title]
+      additionalProperties: false
+      properties:
+        columnId:
+          type: string
+        title:
+          type: string
+          minLength: 1
+    UpdateCardRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        dueDate:
+          type: [string, 'null']
+          format: date
+        labels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Label'
+        assignee:
+          anyOf:
+            - $ref: '#/components/schemas/User'
+            - type: 'null'
+        columnId:
+          type: string
+          description: Destination column when moving the card.
+        position:
+          type: integer
+          minimum: 0
+          description: Zero-based position within column.cardOrder when moving or reordering the card.
+        actor:
+          $ref: '#/components/schemas/User'
+    CreateCommentRequest:
+      type: object
+      required: [text, author]
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+        author:
+          $ref: '#/components/schemas/User'
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: Board not found
